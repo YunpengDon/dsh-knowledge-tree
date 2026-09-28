@@ -1,0 +1,21 @@
+{
+  "name": "dsh-knowledge-tree",
+  "version": "1.0.0",
+  "description": "Knowledge tree plugin for DeepSeek Harness",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^0.1.0",
+    "@deepseek-ai/dsh-fs": "^0.1.0",
+    "@deepseek-ai/dsh-sandbox": "^0.1.0",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.1.0",
+    "@deepseek-ai/dsh-tools": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
