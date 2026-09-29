@@ -8,7 +8,7 @@
 dsh-knowledge-tree/           # 包名 dsh-knowledge-tree
 ├── src/
 │   └── index.ts              # 全部代码：工具实现 + 插件注册
-├── skills/                   # 随包技能（会打进 npm 包）
+├── skills/                   # 随包技能（会打进分发包）
 │   ├── append-leaf/
 │   │   ├── SKILL.md          # 记叶子技能
 │   │   └── references/       # 格式示例
@@ -41,6 +41,12 @@ dsh-knowledge-tree/           # 包名 dsh-knowledge-tree
 
 ## 安装
 
+> **最省事的做法：直接把源码目录、tarball 或下面的 GitHub 链接发给 DeepSeek Harness 智能体，让它帮你装。**
+>
+> 目前 DSH 的插件安装流程仍然比较繁琐——profile、bundle、`allowBuilds`、`--dump-config` 这些概念都要先弄明白，报错也未必直白。而智能体恰好擅长这类「读文档 → 跑命令 → 看报错 → 重试」的活，交给它比对着文档手动折腾快得多。
+>
+> 下面的内容既是手动安装步骤，也是交给智能体时它可以参考的信息。
+
 这是一个 DSH **bundle**：包内自带配置层 `cordis.patch.yml`，装进 profile 后会插入两行——四个工具，以及一行只贡献本包 `skills/` 的技能提供方。装完不需要手改任何配置。
 
 ### 本地目录安装（开发时最常用）
@@ -60,26 +66,23 @@ pnpm --dir dsh-knowledge-tree pack
 pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree-1.0.0.tgz
 ```
 
-### pnpm 安装
-
-```bash
-pnpm dsh plugin --profile <profile> add dsh-knowledge-tree
-```
-
 ### GitHub 安装
 
 ```bash
-pnpm dsh plugin --profile <profile> add github:<user>/knowledge-tree-DSH
+pnpm dsh plugin --profile <profile> add github:YunpengDon/dsh-knowledge-tree
 ```
 
 git 安装拉的是源码，pnpm 会在安装时执行包里的 `prepare`（即 `tsc`）来构建 `dist/`。pnpm ≥10 默认拒绝执行依赖的构建脚本，第一次会失败并在报错里给出包名；把它加进该 profile 的 `pnpm-workspace.yaml` 后重试：
+> （这个文件人工找需要对DSH比较熟悉才行，也不好找，最优解还是扔给你的DSH智能体）
 
 ```yaml
 allowBuilds:
   dsh-knowledge-tree: true
 ```
 
-这等于允许该包在你的机器上以你的权限执行代码，只对信任的源码这么做，并尽量固定 commit（`github:<user>/knowledge-tree-DSH#<sha>`）。
+这等于允许该包在你的机器上以你的权限执行代码，只对信任的源码这么做，并尽量固定 commit（`github:YunpengDon/dsh-knowledge-tree#<sha>`）。
+
+另外注意：直连 GitHub 可能超时（国内网络尤其如此）。遇到时优先改用上面的本地目录或 tarball 方式，它们不需要任何出网安装。
 
 ## 验证
 
