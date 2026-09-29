@@ -1,6 +1,0 @@
-- insert:
-    - id: hello
-      name: '/Users/yunpengdong/coding/DSH/deepseek-harness/dsh-knowledge-tree/src/index.ts'
-    - name: '@deepseek-ai/dsh-skill-filesystem'
-      config:
-        bundledSkillDir: '/Users/yunpengdong/coding/DSH/deepseek-harness/dsh-knowledge-tree/skills'

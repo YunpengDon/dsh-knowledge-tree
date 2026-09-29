@@ -1,13 +1,14 @@
 # knowledge-tree-DSH
-一个「把散落知识捋成自己的教程」的个人知识管理系统。在与AI的对话中收集零散知识（树叶），AI 自动归类到知识树，长期积累最终形成个人独有的知识体系。
+
+一个「把散落知识捋成自己的教程」的个人知识管理系统。在与 AI 的对话中收集零散知识（树叶），AI 自动归类到知识树，长期积累最终形成个人独有的知识体系。
 
 ## 文件结构
 
 ```
-dsh-knowledge-tree/
+dsh-knowledge-tree/           # 包名 dsh-knowledge-tree
 ├── src/
 │   └── index.ts              # 全部代码：工具实现 + 插件注册
-├── skills/
+├── skills/                   # 随包技能（会打进 npm 包）
 │   ├── append-leaf/
 │   │   ├── SKILL.md          # 记叶子技能
 │   │   └── references/       # 格式示例
@@ -15,7 +16,9 @@ dsh-knowledge-tree/
 │   │       └── index-example.md
 │   └── organize-tree/
 │       └── SKILL.md          # 整理知识树技能
-├── package.json
+├── dist/                     # 构建产物，包的实际入口（tsc 输出，不进 git）
+├── cordis.patch.yml          # bundle 配置层，被 dsh.bundle.patch 引用
+├── package.json              # 声明 dsh.bundle
 ├── tsconfig.json
 └── README.md
 ```
@@ -38,41 +41,59 @@ dsh-knowledge-tree/
 
 ## 安装
 
-### 1. 编译
+这是一个 DSH **bundle**：包内自带配置层 `cordis.patch.yml`，装进 profile 后会插入两行——四个工具，以及一行只贡献本包 `skills/` 的技能提供方。装完不需要手改任何配置。
+
+### 本地目录安装（开发时最常用）
 
 ```bash
-cd dsh-knowledge-tree
-npm install
-npm run build
+pnpm --dir dsh-knowledge-tree install
+pnpm --dir dsh-knowledge-tree build
+
+# 路径会被 pnpm 链接安装，改完代码重新 build 即生效
+pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree
 ```
 
-### 2. 注册插件
+### tarball 安装（不触发任何构建脚本）
 
-在 DSH 配置文件（`~/.dsh/cordis.patch.yml` 或项目 `.dsh/cordis.patch.yml`）中添加：
+```bash
+pnpm --dir dsh-knowledge-tree pack
+pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree-1.0.0.tgz
+```
+
+### npm 安装
+
+```bash
+pnpm dsh plugin --profile <profile> add dsh-knowledge-tree
+```
+
+### GitHub 安装
+
+```bash
+pnpm dsh plugin --profile <profile> add github:<user>/knowledge-tree-DSH
+```
+
+git 安装拉的是源码，pnpm 会在安装时执行包里的 `prepare`（即 `tsc`）来构建 `dist/`。pnpm ≥10 默认拒绝执行依赖的构建脚本，第一次会失败并在报错里给出包名；把它加进该 profile 的 `pnpm-workspace.yaml` 后重试：
 
 ```yaml
-- name: './dsh-knowledge-tree'   # 插件路径
+allowBuilds:
+  dsh-knowledge-tree: true
 ```
 
-### 3. 注册技能
+这等于允许该包在你的机器上以你的权限执行代码，只对信任的源码这么做，并尽量固定 commit（`github:<user>/knowledge-tree-DSH#<sha>`）。
 
-技能文件有两种注册方式：
+## 验证
 
-**方式 A：bundledSkillDir（推荐）**
-
-在 DSH 配置中添加 `skill-filesystem` 的 `bundledSkillDir` 配置：
-
-```yaml
-- name: '@deepseek-ai/dsh-skill-filesystem'
-  config:
-    bundledSkillDir: ./dsh-knowledge-tree/skills
+```bash
+pnpm dsh --profile <profile> --dump-config | grep -n knowledge-tree
 ```
 
-这样技能会随插件一起加载和卸载。
+出现 `knowledge-tree` 与 `knowledge-tree-skills` 两行，说明配置层被应用了。但 `--dump-config` **不会求值 `!!js` 表达式**，所以它证明不了 `bundledSkillDir` 的路径解析成功——真正的验收是启动一次，让 `skill` 工具列出 `append-leaf` / `organize-tree`。
 
-**方式 B：手动放置**
+## 卸载
 
-将 `skills/` 目录下的文件夹复制到 `~/.dsh/skills/`。
+```bash
+pnpm dsh plugin --profile <profile> remove dsh-knowledge-tree
+```
 
 ## 与 DeepAgents 版本的主要差异
 

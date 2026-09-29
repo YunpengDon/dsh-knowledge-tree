@@ -3,19 +3,48 @@
   "version": "1.0.0",
   "description": "Knowledge tree plugin for DeepSeek Harness",
   "type": "module",
-  "main": "src/index.ts",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "cordis.patch.yml"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "tsc"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^0.1.0",
-    "@deepseek-ai/dsh-fs": "^0.1.0",
-    "@deepseek-ai/dsh-sandbox": "^0.1.0",
-    "@deepseek-ai/dsh-sandbox-policy": "^0.1.0",
-    "@deepseek-ai/dsh-tools": "^0.1.0"
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-fs": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-sandbox": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.7-rc.2"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-fs": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-sandbox": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.7-rc.2",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   }
 }

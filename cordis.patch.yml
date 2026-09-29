@@ -1,0 +1,35 @@
+# 知识树 bundle 的配置层。
+#
+# package.json 的 dsh.bundle.patch 指向本文件；profile 的 dsh.profile.bundles
+# 选中 dsh-knowledge-tree 时，这一层被插入到组合里。
+
+- insert:
+    # 四个工具：append_leaf / organize_tree / cleanup_organized_leaf / update_index
+    - id: knowledge-tree
+      name: 'dsh-knowledge-tree'
+
+    # 随包技能：单独一行 skill-filesystem，只贡献本包的 skills/ 目录。
+    #
+    # providerName 必须显式指定：默认值 filesystem 会和组合里已有的
+    # skill-filesystem 行重名，注册表会直接抛 "a skill provider named ... is
+    # already registered"。
+    #
+    # includeDefaultRoots: false —— 这一行只负责本包的 skills/，不再重复扫描
+    # 项目 / 用户技能根目录（那是另一行的职责），避免同名技能被两个 provider
+    # 同时发现而产生 "higher-priority skill already exists" 警告。
+    - id: knowledge-tree-skills
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: knowledge-tree
+        includeDefaultRoots: false
+        # 定位本包：patch 层被应用时 baseUrl 是【profile 目录】的 file URL
+        # （实测为 file:///Users/<you>/.dsh/profiles/<name>/），并不是本 patch
+        # 文件所在目录，所以这里从 profile 的 node_modules 按包名解析。
+        #
+        # 该写法对 link / tarball / npm / git 四种安装都成立——无论哪种，包都一定
+        # 在 profile 的 node_modules 下。它依赖 package.json 的 exports 暴露
+        # "./package.json"；若将来重命名包，这里的包名要同步改。
+        #
+        # 不能写相对路径：skill-filesystem 用 resolve() 按进程 cwd 解析配置值，
+        # 相对路径会落到启动目录上。
+        bundledSkillDir: !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-knowledge-tree/package.json')), 'skills')
