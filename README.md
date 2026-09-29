@@ -1,4 +1,4 @@
-# knowledge-tree-DSH
+# dsh-knowledge-tree
 
 一个「把散落知识捋成自己的教程」的个人知识管理系统。在与 AI 的对话中收集零散知识（树叶），AI 自动归类到知识树，长期积累最终形成个人独有的知识体系。
 
@@ -60,7 +60,7 @@ pnpm --dir dsh-knowledge-tree pack
 pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree-1.0.0.tgz
 ```
 
-### npm 安装
+### pnpm 安装
 
 ```bash
 pnpm dsh plugin --profile <profile> add dsh-knowledge-tree
