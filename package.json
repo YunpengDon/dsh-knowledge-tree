@@ -1,9 +1,32 @@
 {
   "name": "dsh-knowledge-tree",
   "version": "1.0.1",
-  "description": "Knowledge tree plugin for DeepSeek Harness",
+  "description": "Knowledge tree plugin for DeepSeek Harness — collect loose knowledge as leaves and let the agent organize them into your own knowledge tree.",
   "type": "module",
   "license": "MIT",
+  "author": "YunpengDon",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "cordis-plugin",
+    "plugin",
+    "bundle",
+    "knowledge-tree",
+    "knowledge-management",
+    "skills"
+  ],
+  "homepage": "https://github.com/YunpengDon/dsh-knowledge-tree#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YunpengDon/dsh-knowledge-tree.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YunpengDon/dsh-knowledge-tree/issues"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -17,7 +40,8 @@
   "files": [
     "dist",
     "skills",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc",

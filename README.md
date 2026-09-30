@@ -50,6 +50,14 @@ dsh-knowledge-tree/           # 包名 dsh-knowledge-tree
 
 这是一个 DSH **bundle**：包内自带配置层 `cordis.patch.yml`，装进 profile 后会插入两行——四个工具，以及一行只贡献本包 `skills/` 的技能提供方。装完不需要手改任何配置。
 
+### npm 安装（推荐）
+
+```bash
+pnpm dsh plugin --profile <profile> add dsh-knowledge-tree
+```
+
+npm 上的包已经包含构建好的 `dist/`，安装时不会执行任何构建脚本，所以**不需要** `allowBuilds` 授权，也不需要出网到 GitHub。装完直接按下面的「验证」启动一次即可。
+
 ### 本地目录安装（开发时最常用）
 
 ```bash
