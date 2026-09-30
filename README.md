@@ -20,6 +20,7 @@ dsh-knowledge-tree/           # 包名 dsh-knowledge-tree
 ├── cordis.patch.yml          # bundle 配置层，被 dsh.bundle.patch 引用
 ├── package.json              # 声明 dsh.bundle
 ├── tsconfig.json
+├── CHANGELOG.md              # 变更记录 / release note
 └── README.md
 ```
 
@@ -63,7 +64,7 @@ pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree
 
 ```bash
 pnpm --dir dsh-knowledge-tree pack
-pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree-1.0.0.tgz
+pnpm dsh plugin --profile <profile> add ./dsh-knowledge-tree-1.0.1.tgz
 ```
 
 ### GitHub 安装
