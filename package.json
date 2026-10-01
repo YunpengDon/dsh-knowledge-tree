@@ -1,6 +1,6 @@
 {
   "name": "dsh-knowledge-tree",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Knowledge tree plugin for DeepSeek Harness — collect loose knowledge as leaves and let the agent organize them into your own knowledge tree.",
   "type": "module",
   "license": "MIT",
@@ -45,7 +45,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepare": "tsc"
+    "prepare": "tsc",
+    "test": "pnpm build && node --test tests/*.test.js"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",

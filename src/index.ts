@@ -17,6 +17,14 @@ import type { SandboxExecutionPolicy } from "@deepseek-ai/dsh-sandbox";
 import type { SandboxPolicyService } from "@deepseek-ai/dsh-sandbox-policy";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { isAbsolute, join } from "node:path";
+import {
+  PENDING_HEADING,
+  findHeadingLine,
+  getPendingLeafCount,
+  insertNode,
+  moveNode,
+  removeNode,
+} from "./markdown.js";
 
 // ──────────────────────────────────────────────────────────────
 // 配置
@@ -98,173 +106,7 @@ function sandboxPolicyFor(
 function treeFile(treeName: string, content: string): string {
   // 标题后一个空行、待整理标题与首条叶子之间一个空行，与 insertNode 的接缝
   // 间距保持一致（原先是标题后两个空行、待整理标题与首叶之间零空行）。
-  return `# ${treeName}\n\n## 🍂 待整理\n\n${content.replace(/\n+$/, "")}\n`;
-}
-
-// ──────────────────────────────────────────────────────────────
-// 辅助函数（不暴露给模型）
-// ──────────────────────────────────────────────────────────────
-
-/**
- * 获取 Markdown 标题层级（# 的数量）
- */
-function headingLevel(heading: string): number {
-  return heading.match(/^#+/)?.[0].length ?? 0; // 计算一个 Markdown 标题字符串开头的 # 数量，也就是标题级别。正则的`^`表示字符串开头， `#+` 表示一个或多个连续的 #。；如果没有以 # 开头，就返回 0
-}
-
-/**
- * 在 md_text 中找到指定标题所在行号，找不到返回 -1
- */
-function findHeadingLine(lines: string[], heading: string): number {
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === heading.trim()) return i;
-  }
-  return -1;
-}
-
-/**
- * 从 startIdx+1 开始，找到下一个同级或更高级标题的行号
- * （即当前节点内容的边界），找不到返回 lines.length
- */
-function findNodeBoundary(
-  lines: string[],
-  startIdx: number, // 开始查询的行号
-  level: number,
-): number {
-  const pattern = new RegExp(`^#{1,${level}}\\s`); // 匹配比level级别高或相等的标题行。正则的`^`表示字符串开头，#{n,m} 表示匹配 n 到 m 个连续的 #， \s 表示匹配一个空白字符
-  for (let j = startIdx + 1; j < lines.length; j++) {
-    if (pattern.test(lines[j].trim())) return j;
-  }
-  return lines.length;
-}
-
-/**
- * 插入节点：把 insert_content 插到 target_heading 节点内容的最开头或最末尾
- *
- * insert_at="start": 插在标题行下一行
- * insert_at="end":   插在节点内容末尾（下一个同级/更高级标题之前）
- *
- * 间距按"接缝"处理：先吸收插入点两侧已有的空行，再统一补恰好一个空行。
- * 若改成"在内容前无条件补一个空行"，接缝前已有空行时会产出双空行，
- * 接缝后紧跟标题时又会与下一个标题粘连。
- */
-function insertNode(
-  mdText: string,
-  targetHeading: string,
-  insertContent: string,
-  insertAt: "start" | "end",
-): string {
-  const lines = mdText.split("\n");
-
-  const idx = findHeadingLine(lines, targetHeading);
-  if (idx === -1) throw new Error(`未找到节点: ${targetHeading}`);
-
-  let insertPos: number;
-  if (insertAt === "start") {
-    insertPos = idx + 1;
-  } else {
-    const level = headingLevel(targetHeading);
-    insertPos = findNodeBoundary(lines, idx, level);
-  }
-
-  // 吸收插入点两侧既有的空行，保证接缝恰好一个空行
-  let before = insertPos;
-  while (before > 0 && lines[before - 1].trim() === "") before--;
-  let after = insertPos;
-  while (after < lines.length && lines[after].trim() === "") after++;
-
-  // 去掉内容尾部的所有换行，避免残留多余空行
-  const block = insertContent.replace(/\n+$/, "").split("\n");
-
-  return [
-    ...lines.slice(0, before),
-    "",
-    ...block,
-    "",
-    ...lines.slice(after),
-  ].join("\n");
-}
-
-/**
- * 规整 lines 中 pos 处的"接缝"：吸收两侧已有的空行，使接缝恰好留下一个空行。
- *
- * moveNode 搬走一个节点后，原地会留下一个接缝。若不规整，源文件该处原本
- * "缺空行"或"多空行"的问题会被原样保留。
- * 接缝之前没有任何实际内容时（pos 落在文首），不留空行。
- */
-function normalizeSeam(lines: string[], pos: number): void {
-  let before = pos;
-  while (before > 0 && lines[before - 1].trim() === "") before--;
-  let after = pos;
-  while (after < lines.length && lines[after].trim() === "") after++;
-
-  const filler = before === 0 ? [] : [""];
-  lines.splice(before, after - before, ...filler);
-}
-
-/**
- * 移动节点：把 source_heading 节点（含标题和正文）移动到 target_heading 节点的开头或末尾
- *
- * 传入 new_heading 时，会在搬移的同时改写源节点的标题——用于把"待整理"里的
- * 树叶提升到正文时去掉标题中的日期，从而无需重新提交整片树叶的正文。
- */
-function moveNode(
-  mdText: string,
-  sourceHeading: string,
-  targetHeading: string,
-  insertAt: "start" | "end",
-  newHeading?: string,
-): string {
-  const lines = mdText.split("\n");
-
-  const sourceIdx = findHeadingLine(lines, sourceHeading);
-  if (sourceIdx === -1) throw new Error(`未找到源节点: ${sourceHeading}`);
-
-  const targetIdx = findHeadingLine(lines, targetHeading);
-  if (targetIdx === -1) throw new Error(`未找到目标节点: ${targetHeading}`);
-
-  // 提取源节点内容（标题 + 正文，到下一个同级/更高级标题之前）
-  const level = headingLevel(sourceHeading);
-  const endIdx = findNodeBoundary(lines, sourceIdx, level);
-
-  // 目标节点若是源节点自身或其后代，搬移没有意义／会连带删掉目标，提前拦截
-  if (targetIdx === sourceIdx || (targetIdx > sourceIdx && targetIdx < endIdx)) {
-    throw new Error(`目标节点不能是源节点自身或其子节点: ${targetHeading}`);
-  }
-
-  const sourceLines = lines.slice(sourceIdx, endIdx);
-  if (newHeading !== undefined) {
-    const trimmed = newHeading.trim();
-    if (/\n/.test(trimmed) || !/^#{1,6}\s+\S/.test(trimmed)) {
-      throw new Error(`new_heading 必须是单行标题，例如 "### 标题"`);
-    }
-    sourceLines[0] = trimmed;
-  }
-  const sourceContent = sourceLines.join("\n");
-
-  // 先删除源节点，并规整搬走处留下的接缝
-  lines.splice(sourceIdx, endIdx - sourceIdx);
-  normalizeSeam(lines, sourceIdx);
-  const afterDelete = lines.join("\n");
-
-  // 再用 insertNode 插入到目标位置
-  return insertNode(afterDelete, targetHeading, sourceContent, insertAt);
-}
-
-/**
- * 统计"## 🍂 待整理"区域下的叶子节点数量
- * 叶子节点格式：### [日期] 标题
- */
-function getPendingLeafCount(mdText: string): number {
-  const lines = mdText.split("\n");
-  const pendingIdx = findHeadingLine(lines, "## 🍂 待整理");
-  if (pendingIdx === -1) throw new Error("未找到待整理区域");
-
-  let count = 0;
-  for (let j = pendingIdx + 1; j < lines.length; j++) {
-    if (/^### \[\d/.test(lines[j].trim())) count++;
-  }
-  return count;
+  return `# ${treeName}\n\n${PENDING_HEADING}\n\n${content.replace(/\n+$/, "")}\n`;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -486,23 +328,18 @@ export function apply(ctx: Context): void {
       const mdText = await ctx.fs.readText(target);
       const lines = mdText.split("\n");
 
-      const pendingIdx = findHeadingLine(lines, "## 🍂 待整理");
-      if (pendingIdx === -1) return `未找到待整理区域: ${relPath}`;
-
-      let leafIdx = -1;
-      for (let j = pendingIdx + 1; j < lines.length; j++) {
-        if (lines[j].trim() === leafHeading) {
-          leafIdx = j;
-          break;
+      let newMdText: string;
+      try {
+        const pendingIdx = findHeadingLine(lines, PENDING_HEADING);
+        if (pendingIdx === -1) return `未找到待整理区域: ${relPath}`;
+        // 只在"待整理"区之后查找：正文里的同名标题不会被误删
+        if (findHeadingLine(lines, leafHeading, pendingIdx + 1) === -1) {
+          return `未找到叶子节点: ${leafHeading}`;
         }
+        newMdText = removeNode(mdText, leafHeading, pendingIdx + 1);
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
       }
-      if (leafIdx === -1) return `未找到叶子节点: ${leafHeading}`;
-
-      const level = headingLevel(leafHeading);
-      const endIdx = findNodeBoundary(lines, leafIdx, level);
-      lines.splice(leafIdx, endIdx - leafIdx);
-
-      const newMdText = lines.join("\n");
 
       // v2 改动：ctx.fs
       await writeTreeFile(ctx, exec, target, newMdText);
