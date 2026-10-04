@@ -9,61 +9,93 @@
  *   2. organize_tree          — 整理知识树（插入/移动节点）
  *   3. cleanup_organized_leaf — 清理已整理的待整理叶子
  *   4. update_index           — 更新知识树索引文件
+ *
+ * 落盘前要不要人点头，交给 dsh-hitl（挂载见 hitl.ts）：组合里有它，四个工具
+ * 就挂上决策卡；没有它，四个工具照常工作，只是少了人工确认这一环。
  */
 
 import type { Context } from "@deepseek-ai/cordis";
 import type { FsTarget } from "@deepseek-ai/dsh-fs";
 import type { SandboxExecutionPolicy } from "@deepseek-ai/dsh-sandbox";
 import type { SandboxPolicyService } from "@deepseek-ai/dsh-sandbox-policy";
-import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { isAbsolute, join } from "node:path";
+import type { ToolExecution, ToolRunContext } from "@deepseek-ai/dsh-tools";
+import {
+  type HitlConfig,
+  type HitlService,
+  mountHitl,
+  normalizeHitlConfig,
+} from "./hitl.js";
 import {
   PENDING_HEADING,
   findHeadingLine,
   getPendingLeafCount,
+  indexFileText,
   insertNode,
   moveNode,
   removeNode,
 } from "./markdown.js";
+import { resolveTreeFile } from "./paths.js";
 
 // ──────────────────────────────────────────────────────────────
 // 配置
 // ──────────────────────────────────────────────────────────────
 
-/** 知识树文件夹名（相对于会话工作区）。 */
-const KNOWLEDGE_TREES_DIRNAME = "knowledge-trees";
-
-/** 无法定位会话工作区时的回退基准：进程启动目录。 */
-const FALLBACK_BASE_DIR = process.cwd();
-
-/**
- * 知识树的根目录：调用方会话的工作区 + `knowledge-trees`。
- *
- * 每个会话各用自己的工作区，因此不同项目/会话的知识树互相隔离；
- * 定位不到会话时回退到进程启动目录。
- */
-function knowledgeTreesDir(exec?: ToolRunContext): string {
-  const workspaceCwd = exec?.agent?.session.header.cwd;
-  const base =
-    workspaceCwd !== undefined && isAbsolute(workspaceCwd)
-      ? workspaceCwd
-      : FALLBACK_BASE_DIR;
-  return join(base, KNOWLEDGE_TREES_DIRNAME);
+/** 插件配置：目前只有 HITL 一节。 */
+export interface KnowledgeTreeConfig {
+  hitl: HitlConfig;
 }
 
+/** 自带确认卡的旧版本用过的键：认出来、说一句、然后忽略。 */
+const LEGACY_KEYS = new Set([
+  "humanTurn",
+  "confirm",
+  "confirmTools",
+  "feedbackTools",
+  "confirmTimeoutSeconds",
+]);
+
 /**
- * 解析知识树文件的绝对路径。
+ * 校验并补全插件配置。
  *
- * 必须传绝对路径：本地后端解析相对路径时会用 `resolve(cwd, path)` 重新锚定到
- * `process.cwd()`，相对路径会被解析到源码目录而不是会话工作区。
+ * 未知键与非法值都只警告、不抛出：profile 里往往还留着旧版本的键，让整个插件
+ * 在启动时炸掉，比忽略一个过时的键糟糕得多。
+ *
+ * @param raw - profile 里 `config:` 给出的原始值。
+ * @param warn - 诊断出口，调用方补上插件名前缀。
  */
-function resolveTreeFile(
-  exec: ToolRunContext | undefined,
-  relPath: string,
-): string {
-  const base = knowledgeTreesDir(exec);
-  return isAbsolute(relPath) ? relPath : join(base, relPath);
+export function normalizeConfig(
+  raw: unknown,
+  warn: (message: string) => void,
+): KnowledgeTreeConfig {
+  if (raw === undefined || raw === null) {
+    return { hitl: normalizeHitlConfig(undefined, warn) };
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    warn("config 必须是一个映射，已改用默认值");
+    return { hitl: normalizeHitlConfig(undefined, warn) };
+  }
+  const record = raw as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key === "hitl") continue;
+    if (LEGACY_KEYS.has(key)) {
+      warn(
+        `config.${key} 已废弃：人在环内现在由 dsh-hitl 的决策卡负责，请改用 config.hitl（本次已忽略）`,
+      );
+      continue;
+    }
+    warn(`config 里不认识的键 "${key}"（已忽略）`);
+  }
+  const hitl = normalizeHitlConfig(record.hitl, warn);
+  // 旧配置里"关掉确认"的取值要延续下来：off 就是不拦。
+  if (record.hitl === undefined && (record.humanTurn === "off" || record.confirm === "off")) {
+    hitl.enabled = false;
+  }
+  return { hitl };
 }
+
+// ──────────────────────────────────────────────────────────────
+// 落盘
+// ──────────────────────────────────────────────────────────────
 
 /**
  * 写入知识树文件。所有写入都必须走这里。
@@ -102,11 +134,60 @@ function sandboxPolicyFor(
   return sandboxPolicy.resolve({ session: exec.agent?.session });
 }
 
+/**
+ * 弹卡前读取知识树文件，供 HITL 预览使用。
+ *
+ * 只读，所以不需要 per-call 沙箱策略（围栏管的是写入）；文件不存在返回 null，
+ * 由预览自己判断"这是正常的新建，还是这次调用注定失败"。
+ */
+async function readTreeFile(
+  ctx: Context,
+  exec: ToolExecution,
+  relPath: string,
+): Promise<string | null> {
+  const target = await ctx.fs.resolve(resolveTreeFile(exec, relPath));
+  const info = await ctx.fs.stat(target);
+  if (!info) return null;
+  return await ctx.fs.readText(target);
+}
+
 /** 新建知识树的初始内容：标题 + 待整理区 + 首条叶子。 */
 function treeFile(treeName: string, content: string): string {
   // 标题后一个空行、待整理标题与首条叶子之间一个空行，与 insertNode 的接缝
   // 间距保持一致（原先是标题后两个空行、待整理标题与首叶之间零空行）。
   return `# ${treeName}\n\n${PENDING_HEADING}\n\n${content.replace(/\n+$/, "")}\n`;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 人在环内
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 组合里有 dsh-hitl 时，把四个工具挂到它的决策卡上。
+ *
+ * 用 `ctx.inject` 而不是插件级 `inject = [...]`：dsh-hitl 是可选依赖，缺了它
+ * 整个插件不该起不来。服务后来才出现（或重载）时这个回调会重跑，挂载随之重建；
+ * 回调自己的上下文交给 `protect` 当 owner——挂载记在 hitl 插件里，只有 effect
+ * 才能让它在插件卸载时自动解绑。
+ */
+function mountHitlWhenAvailable(ctx: Context, config: HitlConfig): void {
+  ctx.inject(["hitl"], injected => {
+    const hitl = injected.get("hitl") as HitlService | undefined;
+    if (hitl === undefined || typeof hitl.protect !== "function") return;
+    const mounted = mountHitl(
+      hitl,
+      {
+        config,
+        readTree: (exec, relPath) => readTreeFile(ctx, exec, relPath),
+      },
+      injected,
+    );
+    if (mounted.length > 0) {
+      ctx.logger.info(
+        `knowledge-tree: 四个工具已挂到 dsh-hitl 的决策卡上（${mounted.join("、")}）`,
+      );
+    }
+  });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -116,7 +197,7 @@ function treeFile(treeName: string, content: string): string {
 /** 插件名称 */
 export const name = "knowledge-tree";
 
-/** 声明依赖的 Cordis 服务 */
+/** 声明依赖的 Cordis 服务（hitl 是可选的，走 apply 里的 ctx.inject） */
 export const inject = ["tools", "fs"];
 
 /**
@@ -135,7 +216,11 @@ function textOutput() {
 /**
  * 插件入口函数
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config?: unknown): void {
+  const options = normalizeConfig(config, message => {
+    ctx.logger.warn(`knowledge-tree: ${message}`);
+  });
+
   // ── 工具 1：append_leaf ──
   ctx.tools.register({
     name: "append_leaf",
@@ -341,7 +426,6 @@ export function apply(ctx: Context): void {
         return e instanceof Error ? e.message : String(e);
       }
 
-      // v2 改动：ctx.fs
       await writeTreeFile(ctx, exec, target, newMdText);
 
       const remaining = getPendingLeafCount(newMdText);
@@ -372,13 +456,14 @@ export function apply(ctx: Context): void {
       const target = await ctx.fs.resolve(resolveTreeFile(exec, "index.md"));
       const info = await ctx.fs.stat(target);
 
-      let finalContent = content;
-      if (!info) {
-        finalContent = "# 知识树索引\n\n" + content;
-      }
+      // 新文件补标题的规则与确认卡上的 diff 共用一处（markdown.indexFileText）
+      const finalContent = indexFileText(info ? content : null, content);
 
       await writeTreeFile(ctx, exec, target, finalContent);
       return "索引文件已更新";
     },
   });
+
+  // 四个工具就绪之后才挂决策卡：卡上显示的正是上面这些工具将要落盘的内容。
+  mountHitlWhenAvailable(ctx, options.hitl);
 }

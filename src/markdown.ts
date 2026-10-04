@@ -12,6 +12,22 @@
 /** "待整理"区域的标题。 */
 export const PENDING_HEADING = "## 🍂 待整理";
 
+/** 索引文件的标题。文件不存在时由 update_index 补上。 */
+export const INDEX_HEADING = "# 知识树索引";
+
+/**
+ * update_index 最终落盘的内容：新文件补标题，已有文件整体覆盖。
+ *
+ * 单独成函数是因为确认卡的 diff 要算出"落盘之后长什么样"——两边必须用同一条
+ * 规则，否则人看到的 diff 与真正写入的内容会差一个标题。
+ *
+ * @param existing - 磁盘上的现状；文件不存在传 null。
+ * @param content - 调用方给的新索引正文。
+ */
+export function indexFileText(existing: string | null, content: string): string {
+  return existing === null ? `${INDEX_HEADING}\n\n${content}` : content;
+}
+
 /**
  * 获取 Markdown 标题层级（# 的数量）
  */
@@ -256,6 +272,33 @@ export function removeNode(mdText: string, heading: string, from = 0): string {
   const endIdx = findNodeBoundary(lines, idx, headingLevel(heading));
   lines.splice(idx, endIdx - idx);
   return lines.join("\n");
+}
+
+/**
+ * 取出一个节点（标题 + 正文）的原文，用于预览"将要被删除的内容"。
+ *
+ * 与 removeNode 共用同一套边界判定：预览里显示多少，删除时就删多少。
+ * 找不到返回 null；标题只出现在代码围栏里时也返回 null（那不是结构节点，
+ * 调用方多半是把围栏里的示例当成了树叶）。
+ *
+ * @param from - 起始行号（含）；cleanup 用它把查找限制在"待整理"区之后。
+ */
+export function nodeText(
+  mdText: string,
+  heading: string,
+  from = 0,
+): string | null {
+  const lines = mdText.split("\n");
+  let idx: number;
+  try {
+    idx = findHeadingLine(lines, heading, from);
+  } catch {
+    return null;
+  }
+  if (idx === -1) return null;
+
+  const endIdx = findNodeBoundary(lines, idx, headingLevel(heading));
+  return lines.slice(idx, endIdx).join("\n");
 }
 
 /**

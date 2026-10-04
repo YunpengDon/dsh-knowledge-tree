@@ -1,6 +1,6 @@
 {
   "name": "dsh-knowledge-tree",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Knowledge tree plugin for DeepSeek Harness — collect loose knowledge as leaves and let the agent organize them into your own knowledge tree.",
   "type": "module",
   "license": "MIT",

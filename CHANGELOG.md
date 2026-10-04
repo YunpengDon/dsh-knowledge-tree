@@ -2,6 +2,26 @@
 
 本项目的所有重要变更都记录在这里。
 
+## 1.1.0
+
+人在环内改为复用 [dsh-hitl](https://github.com/YunpengDon/dsh-hitl) 的决策卡，不再自带确认卡。
+
+- 四个工具落盘前各挂一张卡：`append_leaf` 按 Markdown 渲染正文；`organize_tree` 给出整理之后的整文件 diff；
+  `update_index` 给出旧 / 新索引的并排 diff；`cleanup_organized_leaf` 只读展示将被删除的那片叶子原文。
+- 卡面规矩：可改的才给输入框（正文、名称、锚点、落点、被搬移的标题），既定对象只读（删除卡整张只读，
+  删除与搬移的"知识树文件"只读），预览（diff、将被删除的内容）一律只读；字段顺序先参数、后预览。
+- 卡上的预览与落盘共用 `src/markdown.ts` 的同一组纯函数，两者不会跑偏；算不出来时（锚点不存在、叶子不在待整理区、
+  文件被删）卡上直接说明原因，而不是弹不出卡或装作没事。
+- 配置改为 `config.hitl`：`enabled` / `whenUnavailable` / `countdownSeconds` / `rejectFeedback`。
+  旧的 `humanTurn` / `confirm` / `confirmTools` / `feedbackTools` / `confirmTimeoutSeconds` 只警告、不再生效
+  （其中 `off` 会映射成 `hitl.enabled: false`）。
+- 卡片需要 **dsh-hitl ≥ 0.2.0**：0.2.0 才提供"计算字段"，diff 与删除预览靠它拿到磁盘上的原文。
+  `dsh-hitl` 本身仍是**可选**依赖——组合里没有它时四个工具照常工作，只是没有人确认这一环。
+- 路径定位抽到 `src/paths.ts`；结构操作新增 `nodeText()`，`update_index` 的补标题规则抽成 `indexFileText()`
+  （预览与写入共用）；补 `tests/hitl.test.js`。
+- 已知限制：预览读的是弹卡那一刻的文件内容。人在看卡时文件若被别的会话改动，diff 与真正落盘的内容可能不一致——
+  HITL 拦的是"调用开始之前"，它不是事务。
+
 ## 1.0.2
 
 修复：代码围栏内的 `#` 行被误认为 Markdown 标题，导致 `organize_tree` 把一片树叶静默切成两半。
