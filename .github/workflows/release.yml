@@ -1,0 +1,97 @@
+name: release
+
+# Publishing path: bump package.json, commit, push the tag, and this stages it.
+# The mechanics mirror dsh-hitl's workflow, with one difference: this package is
+# TypeScript, so the job installs dependencies and runs `tsc` before packing.
+#
+#   npm version patch && git push && git push --tags
+#
+# This workflow runs `npm stage publish`, so a release lands in npm's staging
+# area and only becomes public once a maintainer reviews and approves it with
+# 2FA on npmjs.com. That is deliberate: a tampered workflow can upload, but it
+# cannot publish.
+#
+# One-time setup, on npmjs.com → the package → Settings → Trusted Publisher:
+#   organization/user : YunpengDon
+#   repository        : dsh-knowledge-tree
+#   workflow filename : release.yml      <- must equal this file's basename
+#   environment       : (leave empty)
+#   allowed actions   : leave BOTH unchecked — `npm stage publish` is always
+#                       allowed, and "publish directly" / "manage dist-tags"
+#                       are permissions this workflow does not need.
+# If the filename does not match, npm refuses with a 404/403.
+#
+# Authentication is OIDC either way: no npm token lives in this repository and
+# none has to be rotated, and npm CLI attaches the provenance attestation by
+# itself (no `--provenance` flag needed on npm >= 11.5.1).
+
+on:
+  push:
+    tags: ['v*']
+  # Manual runs stage the checked-out commit — the way the first
+  # trusted-publishing release goes out without a local 2FA publish.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The OIDC token npm exchanges for a short-lived publish credential.
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 24 ships npm 11; the next step pins the CLI a little newer so
+          # `npm stage` is certainly present rather than probably present.
+          node-version: '24'
+          # No `registry-url`: that option writes an .npmrc line reading
+          # `_authToken=${NODE_AUTH_TOKEN}`, and with no secret configured npm
+          # can spend the empty token before it tries OIDC — which is exactly
+          # the credential this workflow has. The default registry is already
+          # registry.npmjs.org, and `npm stage publish` prints it either way.
+          package-manager-cache: false
+
+      - name: Check the tag against package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          echo "staging $version from tag $GITHUB_REF_NAME"
+
+      - name: Install pnpm
+        run: |
+          set -eu
+          npm install --global pnpm@11
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, build, and test
+        # `pnpm test` runs `tsc` and then the 32 node:test cases against dist/,
+        # so a broken build never reaches the staging area.
+        run: pnpm test
+
+      - name: Use a CLI that knows `npm stage`
+        run: |
+          set -eu
+          npm install --global npm@^11.21.0
+          npm --version
+
+      - name: Stage the release
+        # `prepare` runs `tsc` once more during packing, so dist/ in the tarball
+        # is the output of this checkout rather than anything committed.
+        run: npm stage publish
