@@ -1,6 +1,6 @@
 {
   "name": "dsh-knowledge-tree",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Knowledge tree plugin for DeepSeek Harness — collect loose knowledge as leaves and let the agent organize them into your own knowledge tree.",
   "type": "module",
   "license": "MIT",
@@ -25,7 +25,7 @@
     "url": "https://github.com/YunpengDon/dsh-knowledge-tree/issues"
   },
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": ">=24.9.0"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,18 +49,18 @@
     "test": "pnpm build && node --test tests/*.test.js"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/dsh-fs": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-sandbox": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-sandbox-policy": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "^0.2.0-rc.2"
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-fs": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/dsh-fs": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-sandbox": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-sandbox-policy": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "^0.2.0-rc.2",
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-fs": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },

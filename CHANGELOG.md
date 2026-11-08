@@ -2,6 +2,14 @@
 
 本项目的所有重要变更都记录在这里。
 
+## 1.1.1
+
+适配 DSH `0.2.2-rc.1`，本插件代码无需改动。
+
+- `peerDependencies` / `devDependencies` 抬到 `^0.2.2-rc.1`，`@deepseek-ai/cordis` 抬到 `^4.1.0`；`engines.node` 跟随 DSH 抬到 `>=24.9.0`。普通 semver 不认「跨补丁号的预发布」，`^0.2.0-rc.2` 覆盖不到 `0.2.2-rc.1`，装在一起会报 peer 不满足。
+- 核对了用到的 DSH 类型面（`ToolDefinition` / `ctx.fs` / `ctx.sandboxPolicy.resolve`），签名未变；`0.2.1` 的执行器拆包、`0.2.2` 的 `fs-observation-policy` 默认关闭都不影响本插件。
+- `pnpm test` 32 项全过；在 `0.2.2-rc.1` 上起服务实测，四个工具都挂上了 `dsh-hitl` 的决策卡。
+
 ## 1.1.0
 
 人在环内改为复用 [dsh-hitl](https://github.com/YunpengDon/dsh-hitl) 的决策卡，不再自带确认卡。
